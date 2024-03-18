@@ -1,0 +1,1167 @@
+Program.Sub.Preflight.Start
+V.Global.sSheets.Declare(String,"")
+Program.External.Include.Library("6013.lib")
+Program.External.Include.Library("ORDUPL.lib")
+V.Global.sProject.Declare(String,"")
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sRet.Declare(String,"")
+V.Local.sMsg.Declare(String,"")
+
+F.Intrinsic.Control.SelectCase(V.Caller.Hook)
+	'populate hook project managment
+	F.Intrinsic.Control.Case(40401)
+		V.Passed.000057.Set("Import RET")
+		'checking if create date is populated on populate hook if so this will indicate if opening in new vs opand and delete.  no switch is passed in indicate what screen is launched.
+		F.Intrinsic.Control.If(V.Passed.000018.Trim,<>,"000000")
+			'new screen enable script 1
+			F.Intrinsic.UI.ChangeCallerProperty(V.Passed.000057,"LOCK",0)
+		F.Intrinsic.Control.Else
+			'disabling script 1 on open and delete. 
+			F.Intrinsic.UI.ChangeCallerProperty(V.Passed.000057,"LOCK",1)
+		F.Intrinsic.Control.EndIf
+'		
+	'script 1
+	F.Intrinsic.Control.Case(40402)
+		V.Global.sProject.Set(V.Passed.000002)
+		F.Intrinsic.UI.ShowOpenFileDialog("","",V.Local.sRet)
+		F.Intrinsic.Control.If(v.Local.sRet.Trim,<>,"")
+			F.Intrinsic.Control.If(V.Local.sRet.Trim,<>,"***CANCEL***")
+				F.Intrinsic.String.Build("Processing File: {0}.....................",V.Local.sRet,V.Local.sMsg)
+				F.Intrinsic.UI.InvokeWaitDialog(V.Local.sMsg)
+				F.Intrinsic.Control.CallSub(Process_File,"File",V.Local.sRet)
+				F.Intrinsic.UI.CloseWaitDialog
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+		
+F.Intrinsic.Control.EndSelect
+
+F.Intrinsic.Control.CallSub(Exit)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Exit.Start
+F.Intrinsic.Control.SetErrorHandler("Exit_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+
+F.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Exit_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.Control.End
+Function.Intrinsic.Control.EndIf
+Program.Sub.Exit.End
+
+Program.Sub.Process_File.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sFileContent.Declare(String,"")
+V.Local.sSheetName.Declare(String,"")
+V.Local.iSheetIndex.Declare(Long,0)
+V.Local.sRet.Declare(String,"")
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.sCust.Declare(String,"")
+V.Local.sSql.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.iSaleOrderLine.Declare(Long,0)
+V.Local.iC.Declare(Long,0)
+V.Local.iP.Declare(Long,0)
+V.Local.sPart.Declare(String,"")
+V.Local.sTempPart.Declare(String,"")
+V.Local.sMsg.Declare(String,"")
+V.Local.fValue.Declare(Float,0)
+V.Local.bThru.Declare(String,"")
+V.Local.bComp.Declare(String,"")
+V.Local.bExcel.Declare(Boolean,False)
+V.Local.sTemp.Declare(String,"")
+
+F.Data.DataTable.CreateFromString("PL&Phases","Acrylic Panels*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Installation Materials & Misc Tools and Supplies*!*OS*!*INS*!*INSTALL|~|Pre-Installation Conference*!*OS*!*INS*!*INSTALL|~|Pre-Installation Inspection*!*OS*!*INS*!*INSTALL|~|Onsite Project Manager*!*OS*!*INS*!*INSTALL|~|Installation Technician(s)*!*OS*!*INS*!*INSTALL|~|Witness Hydro Test*!*OS*!*INS*!*INSTALL|~|Panel Unloading*!*OS*!*INS*!*INSTALL|~|Epoxy Coating of the Rebates Only*!*OS*!*INS*!*INSTALL|~|Annual Inspections*!*OS*!*INS*!*INSTALL|~|Samples*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Extended Install Warranty*!*OS*!*INS*!*INSTALL|~|Country Specific Visas*!*OS*!*INS*!*INSTALL|~|Visa*!*OS*!*INS*!*INSTALL|~|Import Duties & Taxes*!*SH*!*FRT*!*FREIGHT|~|Shipping Frames*!*SH*!*FRT*!*FREIGHT|~|SHIPPING INSURANCE*!*SH*!*FRT*!*FREIGHT|~|Shipping, Handling, and Packaging*!*SH*!*FRT*!*FREIGHT|~|Final Polishing*!*OS*!*INS*!*INSTALL|~|Warehouse Cost*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Rigging Cost*!*OS*!*INS*!*INSTALL|~|Design Review*!*EG*!*ENG*!*ENGINEERING|~|Panel Protection*!*OS*!*INS*!*INSTALL|~|FEA Analysis*!*EG*!*ENG*!*ENGINEERING|~|Standard Installation Scope*!*OS*!*INS*!*INSTALL|~|ATP (Acceptance Testing Procedure)*!*EG*!*ENG*!*ENGINEERING|~|Tooling and Refurbishment*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Dryfitting and Machining Fixture Refurb*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Refurbish Shipping Crates*!*SH*!*FRT*!*FREIGHT|~|BIM Software*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Payment & Performance Bonds*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Scaffolding*!*OS*!*INS*!*INSTALL|~|Onsite Crane*!*OS*!*INS*!*INSTALL|~|Water/Electricity*!*OS*!*INS*!*INSTALL|~|Warranty Bond*!*OS*!*INS*!*INSTALL|~|ShippingF Handling, and Packaging RPT Thailand*!*SH*!*FRT*!*FREIGHT|~|Construction Insurance*!*OS*!*INS*!*INSTALL|~|Bond Testing*!*OS*!*INS*!*INSTALL|~|Disposal*!*OS*!*INS*!*INSTALL|~|Install Details*!*EG*!*ENG*!*ENGINEERING|~|Samples*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Source Inspection*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Textura/Accelerated Payment Program*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Rigging Certification*!*OS*!*INS*!*INSTALL|~|Shipping Frames RPTD*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Brackets*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|Pre-Construction Safety Meeting*!*OS*!*INS*!*INSTALL|~|Sandblasting*!*OS*!*INS*!*INSTALL|~|Customer Discount*!*FP*!*PANL*!*ACRYLIC MANUFACTURING|~|PE Stamp*!*EG*!*ENG*!*ENGINEERING","Line_Item*!*PL*!*Phase*!*Descr","String*!*String*!*String*!*String","*!*","|~|",True)
+
+F.Data.DataTable.AddColumn("PL&Phases","LH",Float,0)
+F.Data.DataTable.AddColumn("PL&Phases","Labor",Float,0)
+F.Data.DataTable.AddColumn("PL&Phases","Material",Float,0)
+F.Data.DataTable.AddColumn("PL&Phases","Outside",Float,0)
+F.Data.DataTable.AddColumn("PL&Phases","Sales",Float,0)
+
+F.Automation.MSExcel.CheckPresence(V.Local.BExcel)
+
+F.Intrinsic.Control.If(V.Local.BExcel)
+	F.Automation.MSExcel.CreateAppObject("MSExcel")
+	F.Automation.MSExcel.OpenWorkBook("MSExcel","Project",V.Args.File)
+	F.Automation.MSExcel.EnumerateWorksheets("Project",V.Local.sSheetName)
+	F.Automation.Generic.DestroyObject("Project")
+	F.Automation.Generic.DestroyObject("MSExcel")
+	
+	'making sure file is released before trying to get spreadsheet data
+	
+	'F.Intrinsic.String.Split(V.Local.sSheetName,"*!*",V.Local.sSheetName)
+	F.Data.DataTable.CreateFromString("SheetName",V.Local.sSheetName,"SheetName","String",V.Ambient.NewLine,"*!*",True)
+	F.Intrinsic.Control.Try
+		F.Automation.MSExcel.ReadSpreadsheet(V.Args.File,V.Local.sFileContent)
+	F.Intrinsic.Control.Catch
+		F.Intrinsic.Control.If(V.Ambient.ErrorNumber,=,204100)
+			F.Automation.MSExcel.ReadSpreadsheet(V.Args.File,V.Local.sFileContent)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+			F.Intrinsic.UI.Msgbox(V.Local.sError)
+			F.Intrinsic.Control.CallSub(Exit)
+		Function.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndTry
+		
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.Msgbox("Mirocroft Exel needs to be installed on the Server to Upload the Ret File","Attention")
+	F.Intrinsic.Control.End
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.String.Split(V.Local.sFileContent,"&^&",V.Global.sSheets)
+
+'checking if excel file contains all sheets that is needed before letting program continue to run.
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'HomeUI*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("File: {0} has missing HomeUI Sheet.",V.Args.File,V.Local.sMsg)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Accounting Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Accounting Summary Sheet.",V.Args.File,V.Local.sMsg)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Accounting Summary Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'PS_Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing PS_Summary Sheet.",V.Args.File,V.Local.sMsg)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing PS_Summary Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Project Review*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Project Review Sheet.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Project Review Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Proposal Summary Sale*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Proposal Summary Sale Sheet.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Proposal Summary Sale Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'ShippingUI*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing ShippingUI Sheet.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing ShippingUI Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Install Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Install Summary Sheet.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Install Summary Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Production Hours & Costs QTY*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Production Hours & Costs QTY.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Production Hours & Costs QTY.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Panel Review*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,=,-1)
+	F.Intrinsic.Control.If(V.Local.sMsg.Trim,=,"")
+		F.Intrinsic.String.Build("File: {0} has missing Panel Review Sheet.",V.Args.File,V.Local.sRet)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.Build("File: {1}{2}{0} has missing Panel Review Sheet.",V.Args.File,V.Local.sMsg,V.Ambient.NewLine,V.Local.sMsg)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Intrinsic.Control.If(V.Local.sMsg.Trim,<>,"")
+	F.Intrinsic.UI.Msgbox(V.Local.sMsg)
+	F.Intrinsic.Control.CallSub(Exit)
+F.Intrinsic.Control.EndIf
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+'getting info from HomeUI Sheet
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+'Customer Name Index 5 of sSheetinfo and index 4 ond sData
+'Job is on Index 5 of sSheetinfo and index 10 ond sData
+F.Intrinsic.String.Split(V.Local.sSheetInfo(5),"*!*",V.Local.sData)
+V.Local.sCust.Set(V.Local.sData(4).UCase)
+F.Intrinsic.String.Split(V.Local.sCust.Trim," ",V.Local.sTemp)
+V.Local.sCust.Set("")
+F.Intrinsic.Control.For(v.Local.i,0,V.Local.sTemp.UBound,1)
+	F.Intrinsic.Control.If(V.Local.sCust.Length,<=,30)
+		F.Intrinsic.Control.If(V.Local.i,>,0)
+			F.Intrinsic.String.Build("{0} {1}",V.Local.sCust.Trim,V.Local.sTemp(V.Local.i).Trim,V.Local.sTemp)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.If(V.Local.sTemp.Length,<=,30)
+			V.Local.sCust.Set(V.Local.sTemp.Trim)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.Control.ExitFor(V.Local.i)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.If(V.Local.i,=,0)
+			F.Intrinsic.String.Left(V.Local.sTemp(V.Local.i),30,V.Local.sCust)
+		F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.ExitFor(V.Local.i)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+V.Global.sProject.Set(V.Local.sData(10).Trim)
+F.Intrinsic.String.Right(V.Global.sProject,7,V.Global.sProject)
+
+F.ODBC.Connection!Con.OpenCompanyConnection
+
+F.Intrinsic.String.Build("select Project from V_PROJECT_MASTER Where Project = '{0}'",V.Global.sProject,V.Local.sSql)
+F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+F.Intrinsic.Control.If(V.Local.sRet,<>,"")
+	F.Intrinsic.String.Build("Project already exists for file: {0}{1}",V.Ambient.NewLine,V.Args.File,V.Local.sMsg)
+	F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Attention")
+	F.Intrinsic.Control.CallSub(Exit)
+F.Intrinsic.Control.EndIf
+
+'setting project number to job
+V.Passed.000002.Set(V.Global.sProject)
+
+V.Local.sCust.Set(V.Local.sCust.Trim)
+V.Local.sCust.Set(V.Local.sCust.UCase)
+
+F.Intrinsic.String.Build("select Top 1 Customer from V_CUSTOMER_MASTER Where ltrim(rtrim(ucase(Name_Customer))) like '{0}%'",V.Local.sCust.PSQLFriendly,V.Local.sSql)
+F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sCust)
+
+F.ODBC.Connection!Con.Close
+
+F.Intrinsic.Control.If(V.Local.sCust.Trim,<>,"")
+	V.Passed.000023.Set(V.Local.sCust)
+	V.Passed.000024.Set(V.Local.sData(4).Trim)
+	
+F.Intrinsic.Control.Else
+	F.Intrinsic.UI.ChangeWaitStatus("Creating Customer.......................")
+	'creating customer
+	F.Intrinsic.Control.CallSub(Create_Customer,"Name",V.Local.sData(4).Trim)
+	V.Local.sCust.Set(V.Args.Cust)
+	V.Passed.000023.Set(V.Local.sCust)
+	V.Passed.000024.Set(V.Local.sData(4).Trim)
+F.Intrinsic.Control.EndIf
+
+V.Local.sData.Redim(0,0)
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo(6),"*!*",V.Local.sData)
+
+'Project Name is on Index 6 of sheetinfo and index 4 ond sData
+'Project Name = Desc on Project Screen
+V.Passed.000004.Set(V.Local.sData(4).Trim)
+
+'sales
+F.Intrinsic.String.Split(V.Local.sSheetInfo(12),"*!*",V.Local.sData)
+F.Intrinsic.String.Format(V.Local.sData(4),"#########0.000",V.Local.sData(4))
+V.Passed.000014.Set(V.Local.sData(4))
+'Margin
+F.Intrinsic.String.Split(V.Local.sSheetInfo(13),"*!*",V.Local.sData)
+F.Intrinsic.String.Format(V.Local.sData(4),"#########0.000",V.Local.sData(4))
+V.Passed.000015.Set(V.Local.sData(4))
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Accounting Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+F.Intrinsic.Control.For(V.Local.i,11,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+	F.Intrinsic.Control.If(V.Local.sData(1).Trim,=,"","AND",V.Local.sData(4).IsNumeric,=,TRUE)
+		F.Intrinsic.Control.ExitFor(V.Local.i)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+'outside = (us + asia)travel  + (us + asia)sub-contract
+'travel indexs (8 and 17)
+'sub-contract indexs (9 and 18)
+'7/26/2021 RLK No Longer adding in Asia but leaving code in incase customer changes their mind
+F.Intrinsic.Math.Add(V.Local.sData(8).Float,V.Local.sData(9).Float,V.Local.fValue)
+'F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(18).Float,V.Local.fValue)
+'F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(19).Float,V.Local.fValue)
+V.Passed.000006.Set(V.Local.fValue.Long)
+
+'Labor = (us + asia)Labor + (us + asia)Fuel + (us + asia)Overhead
+'7/26/2021 RLK No Longer adding in Asia but leaving code in incase customer changes their mind
+F.Intrinsic.Math.Add(V.Local.sData(4).Float,V.Local.sData(6).Float,V.Local.fValue)
+F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(10).Float,V.Local.fValue)
+'F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(14).Float,V.Local.fValue)
+'F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(16).Float,V.Local.fValue)
+'F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(20).Float,V.Local.fValue)
+'must be numeric
+V.Passed.000005.Set(V.Local.fValue.Long)
+
+'Materials indexs (5 and 14)
+'7/26/2021 RLK No Longer adding in Asia but leaving code in incase customer changes their mind
+'F.Intrinsic.Math.Add(V.Local.sData(6).Float,V.Local.sData(15).Float,V.Local.fValue)
+V.Local.fValue.Set(V.Local.sData(5).Float)
+
+'must be numeric
+V.Passed.000040.Set(V.Local.fValue.Long)
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Install Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+F.Intrinsic.Control.For(V.Local.i,0,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+	F.Intrinsic.Control.If(V.Local.sData(10).Trim,=,"Total Project Install Hours:")
+		F.Intrinsic.Control.ExitFor(V.Local.i)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+V.Passed.000003.Set(V.Local.sData(12).Long)
+
+'7/26/2021 RLK Labor Hours will now also include Production Hours & Costs QTY + Install Hours
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Production Hours & Costs QTY*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo(209),"*!*",V.Local.sData)
+
+F.Intrinsic.Math.Add(V.Passed.000003.Long,V.Local.sData(21).Long,V.Local.sData(21).Long)
+'Labor Hour
+'must be numeric
+V.Passed.000003.Set(V.Local.sData(21).Long)
+
+F.Intrinsic.UI.ChangeWaitStatus("Creating Sales Order.......................")
+
+F.Intrinsic.Control.CallSub(SO_HDR,"Cust",V.Local.sCust)
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'PS_Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+'getting info from PS_Summary Sheet
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+'Parts information start at Index 12 of sSheetInfo, need to parse through sheet until Grand Totals: shows up in the row at index 24
+'sData Info
+'Line Number Incex 1
+'Part index 2
+'Qty index 4
+'Desc index 8
+'Sale Price Index 59
+
+F.Intrinsic.Control.For(V.Local.i,11,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i).sSheetInfo,"*!*",V.Local.sData)
+	F.Intrinsic.Control.If(V.Local.sData(1).IsNumeric)
+		'adding part to Sales Order Line
+		F.Intrinsic.String.IsInString(V.Local.sData(2).Ucase,"THRU",False,V.Local.bThru)
+		F.Intrinsic.Control.If(V.Local.bThru)
+			F.ODBC.Connection!con.OpenCompanyConnection
+			F.Intrinsic.Control.For(V.Local.iC,1,V.Local.sData(4).Long,1)
+				F.Intrinsic.Control.If(V.Local.iC,=,1)
+					F.Intrinsic.String.Split(V.Local.sData(2).Ucase,"THRU",V.Local.sTempPart)
+					V.Local.sTempPart.Set(V.Local.sTempPart.Trim)
+					V.Local.sPart.Set(V.Local.sTempPart)
+					F.Intrinsic.Math.Div(V.Local.sData(59).Float,V.Local.sData(4).Long,V.Local.fValue)
+				F.Intrinsic.Control.Else
+					F.Intrinsic.String.Split(V.Local.sPart,"-",V.Local.sTempPart)
+					F.Intrinsic.Math.Add(V.Local.sTempPart(1).Long,1,v.Local.sTempPart(1))
+					F.Intrinsic.String.Format(V.Local.sTempPart(1),"000",V.Local.sTempPart(1))
+					F.Intrinsic.Control.For(V.Local.iP,0,V.Local.sTempPart.UBound,1)
+						F.Intrinsic.Control.If(V.Local.iP,=,0)
+							V.Local.sPart.Set(V.Local.sTempPart)
+						F.Intrinsic.Control.Else
+							F.Intrinsic.String.Build("{0}-{1}",V.Local.sPart,V.Local.sTempPart(V.Local.iP),V.Local.sPart)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.Next(V.Local.iP)
+				F.Intrinsic.Control.EndIf
+				F.Intrinsic.Math.Add(V.Local.iSaleOrderLine,1,V.Local.iSaleOrderLine)
+				'may have to build the part number if qty > 1
+				F.Intrinsic.String.Build("Select Part From V_Inventory_Mstr Where Part = '{0}'",V.Local.sPart.Trim,V.Local.sSql)
+				F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+				F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+					F.Global.Inventory.CreatePart(V.Local.sPart,"EA",V.Local.sData(8).Trim,"","FP","F","","",V.Local.fValue,"NOMAINT")
+				F.Intrinsic.Control.EndIf
+				
+				F.Intrinsic.Control.CallSub(SO_Lines,"Index",V.Local.iSheetIndex,"Part",V.Local.sPart,"DataIndex",V.Local.i,"Sheet","PS_Summary","Div","Y")
+			F.Intrinsic.Control.Next(V.Local.iC)
+			F.ODBC.Connection!con.Close
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.IsInString(V.Local.sData(2).Ucase,"/",False,V.Local.bComp)
+			F.Intrinsic.Math.Add(V.Local.iSaleOrderLine,1,V.Local.iSaleOrderLine)
+			V.Local.sPart.Set(V.Local.sData(2).Trim)
+			F.Intrinsic.String.Build("Select Part From V_Inventory_Mstr Where Part = '{0}'",V.Local.sPart.Trim,V.Local.sSql)
+			F.ODBC.Connection!con.OpenCompanyConnection
+			F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+				F.Global.Inventory.CreatePart(V.Local.sPart.Trim,"EA",V.Local.sData(8).Trim,"","FP","F","","",V.Local.sData(59).Float,"NOMAINT")
+			F.Intrinsic.Control.EndIf
+			
+			F.Intrinsic.Control.If(V.Local.bComp)
+				F.Intrinsic.String.Split(V.Local.sData(2).Ucase,"/",V.Local.sPart)
+				F.Intrinsic.String.Build("Select Part From V_Inventory_Mstr Where Part = '{0}'",V.Local.sPart.Trim,V.Local.sSql)
+				F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+'				F.Intrinsic.Math.Div(V.Local.sData(58).Float,V.Local.sPart(V.Local.sPart.UBound).Long,V.Local.fValue)
+				F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+					F.Intrinsic.Control.CallSub(Get_Price,"Part",V.Local.sData(2).Ucase)
+					F.Global.Inventory.CreatePart(V.Local.sPart.Trim,"EA",V.Local.sData(8).Trim,"","FP","F","","",V.Args.Price,"NOMAINT")
+				F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.For(V.Local.iP,2,V.Local.sPart(V.Local.sPart.UBound).Long,1)
+					V.Local.sTempPart.Redim(0,0)
+					F.Intrinsic.String.Split(V.Local.sPart,"-",V.Local.sTempPart)
+					V.Local.sPart.Set("")
+					F.Intrinsic.Math.Add(V.Local.sTempPart(V.Local.sTempPart.UBound).Long,1,V.Local.sTempPart(V.Local.sTempPart.UBound))
+					F.Intrinsic.String.LPad(V.Local.sTempPart(V.Local.sTempPart.UBound),"0",2,V.Local.sTempPart(V.Local.sTempPart.UBound))
+					F.Intrinsic.Control.For(V.Local.iC,0,V.Local.sTempPart.UBound,1)
+						F.Intrinsic.Control.If(V.Local.iC,=,0)
+							V.Local.sPart.Set(V.Local.sTempPart(V.Local.iC))
+						F.Intrinsic.Control.Else
+							F.Intrinsic.String.Build("{0}-{1}",V.Local.sPart,V.Local.sTempPart(V.Local.iC),V.Local.sPart)
+						F.Intrinsic.Control.EndIf
+					F.Intrinsic.Control.Next(V.Local.iC)
+					F.Intrinsic.String.Build("Select Part From V_Inventory_Mstr Where Part = '{0}'",V.Local.sPart.Trim,V.Local.sSql)
+					F.ODBC.Connection!Con.ExecuteAndReturn(V.Local.sSql,V.Local.sRet)
+					F.Intrinsic.Control.If(V.Local.sRet.Trim,=,"")
+						F.Intrinsic.Control.CallSub(Get_Price,"Part",V.Local.sPart)
+						F.Global.Inventory.CreatePart(V.Local.sPart.Trim,"EA",V.Local.sData(8).Trim,"","FP","F","","",V.Local.fValue,"NOMAINT")
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.Next(v.Local.iP)
+			F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.CallSub(SO_Lines,"Index",V.Local.iSheetIndex,"Part",V.Local.sData(2).Ucase,"DataIndex",V.Local.i,"Sheet","PS_Summary","Div","N")
+			F.ODBC.Connection!con.Close
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Project Review*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+'setting commission
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+F.Intrinsic.String.Split(V.Local.sSheetInfo(9),"*!*",V.Local.sData)
+F.Intrinsic.Math.Mult(V.Local.sData(11).Float,100,V.Local.sData(11))
+V.Passed.000013.Set(V.Local.sData(11).Long)
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Intrinsic.Control.CallSub(SO_Lines,"Index",V.Local.iSheetIndex,"Sheet","Project Review")
+
+F.Intrinsic.Control.If(V.DataTable.ORDUPL.RowCount--,<>,-1)
+	F.Intrinsic.Control.CallSub(ORDUPLCreateFile)
+	F.Intrinsic.Control.CallSub(ORDUPLSync)
+	F.ODBC.Connection!con.OpenCompanyConnection
+	F.Intrinsic.String.Build("Update ORDER_HEADER Set Project = '{0}', Customer_PO = '' Where Customer_PO = '{0}' and Record_No like '%A'",V.Global.sProject,V.Local.sSql)
+	F.ODBC.Connection!Con.Execute(V.Local.sSql)
+	F.ODBC.Connection!Con.Close
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.UI.ChangeWaitStatus("Creating Project Phases.......................")
+'ading project phases
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Proposal Summary Sale*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Intrinsic.Control.CallSub(Project_Phase,"Index",V.Local.iSheetIndex)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Process_File.End
+
+Program.Sub.Create_Customer.Start
+F.Intrinsic.Control.SetErrorHandler("Create_Customer_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sCust.Declare(String,"")
+V.Local.bAuto.Declare(Boolean,False)
+V.Local.sRet.Declare(String,"")
+V.Local.sSql.Declare(String,"")
+V.Local.bPad.Declare(Boolean,False)
+V.Local.sCustUp.Declare(String,"")
+V.Local.sName.Declare(String,"")
+V.Local.sFile.Declare(String,"")
+V.Local.bEx.Declare(Boolean,False)
+V.Local.sTemp.Declare(String,"")
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.sAddress1.Declare(String,"")
+V.Local.sState.Declare(String,"")
+V.Local.sCity.Declare(String,"")
+V.Local.sZip.Declare(String,"")
+V.Local.iSheetIndex.Declare(Long,0)
+
+F.Global.General.ReadOption("400251",0,"0000",V.Local.bAuto)
+'check if padding with 0 if true then don't pad with 0's
+F.Global.General.ReadOption("130002",0,"0000",V.Local.bPad)
+
+F.Intrinsic.String.RPad(V.Args.Name," ",30,V.Local.sName)
+F.Intrinsic.String.Left(V.Local.sName,30,V.Local.sName)
+
+F.Intrinsic.Control.If(V.Local.bAuto)
+
+	F.Global.General.ReadOption("401084",3,"0000",V.Local.sCust)
+
+	F.Intrinsic.Math.Add(V.Local.sCust.Long,1,V.Local.sCust)
+	
+	F.ODBC.Connection!Con.OpenCompanyConnection
+	F.Intrinsic.String.Build("Update Op_Header set F_Long = {0} Where ID = '401084' and Sequence = '0000'",V.Local.sCust.Long,V.Local.sSql)
+	F.ODBC.Connection!Con.Execute(V.Local.sSql)
+	
+	'padding if company Option is turned on
+	F.Intrinsic.Control.If(V.Local.bPad,=,False)
+		F.Intrinsic.String.LPad(V.Local.sCust,"0",6,V.Local.sCust)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.String.LPad(V.Local.sCust," ",6,V.Local.sCust)
+	F.Intrinsic.Control.EndIf
+	
+	F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'ShippingUI*'","")
+	
+	F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+		V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+		V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+		F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+		F.Intrinsic.String.Split(V.Local.sSheetInfo(10),"*!*",V.Local.sData)
+		V.Local.sAddress1.Set(V.Local.sData(4).Trim)
+		V.Local.sData.Redim(0,0)
+		F.Intrinsic.String.Split(V.Local.sSheetInfo(11),"*!*",V.Local.sData)
+		F.Intrinsic.String.Split(V.Local.sData(4).Trim,",",V.Local.sCity)
+		V.Local.sCity.RedimPreserve(0,1)
+		V.Local.sState.Set(V.Local.sCity(1).Trim)
+		F.Intrinsic.String.Split(V.Local.sState.Trim," ",V.Local.sState)
+		F.Intrinsic.Control.If(V.Local.sState.UBound,>,0)
+			V.Local.sZip.Set(V.Local.sState(V.Local.sState.UBound).Trim)
+		F.Intrinsic.Control.EndIf
+		
+		F.Data.DataTable.AddRow("6013","CustNum",V.Local.sCust,"CustName",V.Local.sName,"Address1",V.Local.sAddress1,"City",V.Local.sCity,"State",V.Local.sState,"Zip",V.Local.sZip,"ShipName",V.Local.sName,"ShipAddress1",V.Local.sAddress1,"ShipCity",V.Local.sCity,"ShipState",V.Local.sState,"ShipZip",V.Local.sZip)
+	F.Intrinsic.Control.Else
+		F.Data.DataTable.AddRow("6013","CustNum",V.Local.sCust,"CustName",V.Local.sName,"ShipName",V.Local.sName)
+	F.Intrinsic.Control.EndIf
+	
+	F.Data.DataView.Close("SheetName","VSheetName")
+	
+	F.Intrinsic.Variable.AddRV("Cust",V.Local.sCust)
+	
+	F.ODBC.Connection!con.Close
+	
+	F.Intrinsic.Control.If(V.DataTable.6013.RowCount--,<>,-1)
+		F.Intrinsic.Control.CallSub(6013Sync)
+		F.Data.DataTable.AcceptChanges("6013")
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	F.Intrinsic.String.Build("Customer Auto Number Option is not Turned on.  Please create a Customer Record for '{0}'",V.Args.Name,V.Local.sMsg)
+	F.Intrinsic.UI.Msgbox(V.Local.sMsg,"Attention")
+	F.Intrinsic.Control.CallSub(Exit)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Create_Customer_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Create_Customer.End
+
+Program.Sub.SO_HDR.Start
+F.Intrinsic.Control.SetErrorHandler("SO_HDR_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sDueDate.Declare(String,"")
+V.Local.sOrderDate.Declare(String,"")
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.sCity.Declare(String,"")
+V.Local.sState.Declare(String,"")
+V.Local.sZip.Declare(String,"")
+V.Local.iSheetIndex.Declare(Long,0)
+V.Local.sAddress1.Declare(String,"")
+V.Local.sPO.Declare(String,"")
+V.Local.sName.Declare(String,"")
+V.Local.sSalesRep.Declare(String,"")
+V.Local.sUser.Declare(String,"")
+V.Local.sOrder.Declare(STring,"")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'ShippingUI*'","")
+
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+	V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+	F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(10),"*!*",V.Local.sData)
+	V.Local.sAddress1.Set(V.Local.sData(4).Trim)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(11),"*!*",V.Local.sData)
+	F.Intrinsic.String.Split(V.Local.sData(4).Trim,",",V.Local.sCity)
+	V.Local.sCity.RedimPreserve(0,1)
+	V.Local.sState.Set(V.Local.sCity(1).Trim)
+	F.Intrinsic.String.Split(V.Local.sState.Trim," ",V.Local.sState)
+	F.Intrinsic.Control.If(V.Local.sState.UBound,>,0)
+		V.Local.sZip.Set(V.Local.sState(V.Local.sState.UBound).Trim)
+	F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.EndIf
+F.Data.DataView.Close("SheetName","VSheetName")
+
+'F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName = 'Panel Review'","")
+
+'F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+'	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+'	F.Intrinsic.String.Split(V.Global.sSheets(V.Local.iSheetIndex),"$!$",V.Local.sSheetInfo)
+'	F.Intrinsic.String.Split(V.Local.sSheetInfo(9),"*!*",V.Local.sData)
+'	V.Local.sUser.Set(V.Local.sData(24).Trim)
+'	
+'F.Intrinsic.Control.EndIf
+'F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Proposal Summary Sale*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+	V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+	F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(4),"*!*",V.Local.sData)
+	
+	F.Intrinsic.String.Format(V.Local.sData(7).Trim,"YYYYMMDD",V.Local.sDueDate)
+	F.Intrinsic.String.Format(V.Ambient.Date,"YYYYMMDD",V.Local.sOrderDate)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(8),"*!*",V.Local.sData)
+	V.Local.sPO.Set(V.Local.sData(4).Trim)
+	F.Intrinsic.String.Replace(V.Local.sPO,"-","",V.Local.sOrder)
+	F.Intrinsic.String.Right(V.Local.sPO,7,V.Local.sPO)
+	
+	V.Local.sSalesRep.Set(V.Local.sData(7).Trim)
+	
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(5),"*!*",V.Local.sData)
+	V.Local.sName.Set(V.Local.sData(4).Trim)
+	
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(9),"*!*",V.Local.sData)
+	V.Local.sUser.Set(V.Local.sData(7).Trim)
+	
+	F.Data.DataTable.AddRow("ORDUPL","Transaction","O","OrderNumber",V.Local.sOrder,"CustomerNO",V.Args.Cust,"OrderDueDate",V.Local.sDueDate,"OrderDate",V.Local.sOrderDate,"CustomerPO",V.Global.sProject,"SHIPToName",V.Local.sName,"ShipToAddress1",V.Local.sAddress1,"ShipToCity",V.Local.sCity,"ShipToState",V.Local.sState,"ShipToZip",V.Local.sZip,"Salesman",V.Local.sSalesRep,"UserField1Head",V.Local.sUser.UCase)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+	
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SO_HDR_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.SO_HDR.End
+
+Program.Sub.SO_Lines.Start
+F.Intrinsic.Control.SetErrorHandler("SO_Lines_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.sLine.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.sPart.Declare(String,"")
+V.Local.sTemp.Declare(String,"")
+V.Local.iC.Declare(Long,0)
+V.Local.sDesc.Declare(String,"")
+V.Local.sCost.Declare(String,"")
+V.Local.sPrice.Declare(String,"")
+V.Local.sWeight.Declare(String,"")
+V.Local.sQty.Declare(String,"")
+V.Local.sPL.Declare(String,"")
+V.Local.bRet.Declare(Boolean,False)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Args.Index))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+F.Intrinsic.Control.If(V.Args.Sheet,=,"PS_Summary")
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Args.DataIndex),"*!*",V.Local.sData)
+	F.Intrinsic.Math.Add(V.DataTable.ORDUPLLines.RowCount,1,V.Local.sLine)
+	F.Intrinsic.String.LPad(V.Local.sLine,"0",3,V.Local.sLine)
+	F.Intrinsic.Control.If(V.Args.Div,=,"N")
+'		F.Intrinsic.String.Format(V.Local.sData(60),"#########0.0000",V.Local.sPrice)
+		F.Intrinsic.String.Format(V.Local.sData(59),"#########0.00",V.Local.sPrice)
+		F.Intrinsic.Math.Mult(V.Local.sPrice,1000000,V.Local.sPrice.Long)
+		F.Intrinsic.String.Format(V.Local.sData(55),"#########0.000",V.Local.sWeight)
+		F.Intrinsic.Math.Mult(V.Local.sData(4),10000,V.Local.sQty.Long)
+'		F.Intrinsic.String.Format(V.Local.sData(59),"#########0.0000",V.Local.sCost)
+		F.Intrinsic.String.Format(V.Local.sData(58),"#########0.000000",V.Local.sCost)
+		F.Intrinsic.Math.Mult(V.Local.sCost,1000000,V.Local.sCost.Long)
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Math.Div(V.Local.sData(59),V.Local.sData(4),v.Local.sPrice)
+'		F.Intrinsic.String.Format(v.Local.sPrice,"#########0.0000",V.Local.sPrice)
+		F.Intrinsic.String.Format(v.Local.sPrice,"#########0.00",V.Local.sPrice)
+		F.Intrinsic.Math.Mult(V.Local.sPrice,1000000,V.Local.sPrice.Long)
+		F.Intrinsic.Math.Div(V.Local.sData(55),V.Local.sData(4),v.Local.sWeight)
+		F.Intrinsic.String.Format(v.Local.sWeight,"#########0.000",V.Local.sWeight)
+		F.Intrinsic.Math.Mult(1,10000,V.Local.sQty.Long)
+		F.Intrinsic.Math.Div(V.Local.sData(58),V.Local.sData(4),v.Local.sCost)
+'		F.Intrinsic.String.Format(v.Local.sCost,"#########0.0000",V.Local.sCost)
+		F.Intrinsic.String.Format(v.Local.sCost,"#########0.000000",V.Local.sCost)
+		F.Intrinsic.Math.Mult(V.Local.sCost,1000000,V.Local.sCost.Long)
+	F.Intrinsic.Control.EndIf
+	F.Data.DataTable.AddRow("ORDUPLLines","LineNumber",V.Local.sLine,"QtyOrdered",V.Local.sQty,"UM","EA","PartNumber",V.Args.Part.Trim,"PartLoc","","Cost",V.Local.sCost,"Weight",V.Local.sWeight,"QuotedPrice",V.Local.sPrice,"PartDesc",V.Local.sData(9),"LineOrderDate",V.DataTable.ORDUPL(V.DataTable.ORDUPL.RowCount--).OrderDate!FieldVal,"PL","FP","Router",V.Args.Part,"LinePromiseDate",V.DataTable.ORDUPL(V.DataTable.ORDUPL.RowCount--).OrderDueDate!FieldVal,"LineType","S")
+F.Intrinsic.Control.Else
+	F.Intrinsic.Control.For(V.Local.i,12,V.Local.sSheetInfo.UBound,1)
+		V.Local.sPL.Set("OS")
+		V.Local.sData.Redim(0,0)
+		F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+		F.Intrinsic.Control.If(V.Local.sData(2).IsNumeric,=,TRUE,"AND",V.Local.sData(0).UCASE,=,"TRUE")
+			F.Intrinsic.Math.Add(V.DataTable.ORDUPLLines.RowCount,1,V.Local.sLine)
+			F.Intrinsic.String.LPad(V.Local.sLine,"0",3,V.Local.sLine)
+			F.Intrinsic.String.Split(V.Local.sData(3).Trim," ",V.Local.sTemp)
+			F.Intrinsic.Control.For(V.Local.iC,0,V.Local.sTemp.UBound,1)
+				F.Intrinsic.Control.If(V.Local.iC,=,0)
+					V.Local.sPart.Set(V.Local.sTemp)
+				F.Intrinsic.Control.Else
+					F.Intrinsic.String.Build("{0} {1}",V.Local.sTemp,V.Local.sTemp(V.Local.iC).Trim,V.Local.sTemp)
+					F.Intrinsic.Control.If(V.Local.sTemp.Length,<=,20)
+						V.Local.sPart.Set(V.Local.sTemp)
+					F.Intrinsic.Control.Else
+						F.Intrinsic.Control.ExitFor(V.Local.iC)
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.iC)
+			F.Intrinsic.String.Left(V.Local.sData(3).Trim,30,V.Local.sDesc)
+'			F.Intrinsic.String.Format(V.Local.sData(13),"#########0.0000",V.Local.sPrice)
+			F.Intrinsic.String.Format(V.Local.sData(13),"#########0.00",V.Local.sPrice)
+			F.Intrinsic.Math.Mult(V.Local.sPrice,1000000,V.Local.sPrice.Long)
+'			F.Intrinsic.String.Format(V.Local.sData(5),"#########0.0000",V.Local.sCost)
+			F.Intrinsic.String.Format(V.Local.sData(5),"#########0.000000",V.Local.sCost)
+			F.Intrinsic.Math.Mult(V.Local.sCost,1000000,V.Local.sCost.Long)
+			F.Intrinsic.Control.For(V.Local.iC,0,V.DataTable.PL&Phases.RowCount--,1)
+				F.Intrinsic.String.IsInString(V.Local.sData(3).Trim,V.DataTable.PL&Phases(V.Local.iC).Line_Item!FieldValTrim,False,V.Local.bRet)
+				F.Intrinsic.Control.If(V.Local.bRet)
+					V.Local.sPL.Set(V.DataTable.PL&Phases(V.Local.iC).PL!FieldValTrim)
+					F.Intrinsic.Control.ExitFor(V.Local.iC)
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.iC)
+			F.Data.DataTable.AddRow("ORDUPLLines","LineNumber",V.Local.sLine,"QtyOrdered","10000","UM","EA","PartNumber",V.Local.sPart,"PartLoc","","Cost",V.Local.sCost,"QuotedPrice",V.Local.sPrice,"PartDesc",V.Local.sDesc,"LineOrderDate",V.DataTable.ORDUPL(V.DataTable.ORDUPL.RowCount--).OrderDate!FieldVal,"PL",V.Local.sPL,"LinePromiseDate",V.DataTable.ORDUPL(V.DataTable.ORDUPL.RowCount--).OrderDueDate!FieldVal,"Router",V.Local.sPart,"LineType","S")
+		F.Intrinsic.Control.Else
+			F.Intrinsic.Control.If(V.Local.sData(2).IsNumeric,=,False)
+				F.Intrinsic.Control.ExitFor(V.Local.i)
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i)
+F.Intrinsic.Control.EndIf
+	
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("SO_Lines_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.SO_Lines.End
+
+Program.Sub.Project_Phase.Start
+F.Intrinsic.Control.SetErrorHandler("Project_Phase_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.sData.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.iPos.Declare(Long,0)
+V.Local.sDesc.Declare(String,"")
+V.Local.sPhase.Declare(String,"")
+v.Local.sSql.Declare(String,"")
+V.Local.sRet.Declare(String,"")
+v.Local.sStartDt.Declare(String,"")
+V.Local.sTime.Declare(String,"")
+V.Local.sFilter.Declare(String,"")
+V.Local.bRet.Declare(Boolean,False)
+V.Local.fValue.Declare(Float,0)
+V.Local.iSheetIndex.Declare(Long,0)
+V.Local.sString1.Declare(String,"")
+V.Local.sString2.Declare(String,"")
+
+'getting sales from Proposal Summary Sale Sheet
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Args.Index))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+
+F.Intrinsic.Control.For(v.Local.i,0,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+'	F.Intrinsic.Control.If(V.Local.sData(0).Ucase,=,"TRUE","OR",V.Local.sData(0).Ucase,=,"FALSE")
+	F.Intrinsic.Control.If(V.Local.sData(2).IsNumeric)
+		F.Intrinsic.Control.If(V.Local.sData(7).Float,>,0)
+			F.Intrinsic.Control.For(V.Local.iPos,0,V.DataTable.PL&Phases.RowCount--,1)
+				V.Local.sString1.Set(V.DataTable.PL&Phases(V.Local.iPos).Line_Item!FieldValTrim)
+				V.Local.sString2.Set(V.Local.sData(3).Trim)
+				F.Intrinsic.String.IsInString(V.Local.sString2.UCase,V.Local.sString1.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.If(V.Local.bRet,=,False)
+					F.Intrinsic.String.IsInString(V.Local.sString1.UCase,V.Local.sString2.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.If(V.Local.bRet)
+					F.Intrinsic.Math.Add(V.Local.sData(7).Float,V.DataTable.PL&Phases(V.Local.iPos).Sales!FieldValFloat,V.Local.fValue)
+					F.Data.DataTable.SetValue("PL&Phases",V.Local.iPos,"Sales",V.Local.fValue)
+					F.Intrinsic.Control.ExitFor(V.Local.iPos)
+				F.Intrinsic.Control.Else
+					F.Intrinsic.Control.If(V.Local.iPos,=,V.DataTable.PL&Phases.RowCount--)
+						F.Data.DataView.Create("PL&Phases","Temp",22,"Phase = 'INS'","")
+						F.Intrinsic.Math.Add(V.Local.sData(7).Float,V.DataView.PL&Phases!temp(V.DataView.PL&Phases!temp.RowCount--).Sales!FieldValFloat,V.Local.fValue)
+						F.Data.DataView.SetValue("PL&Phases","Temp",V.DataView.PL&Phases!temp.RowCount--,"Sales",V.Local.fValue)
+						F.Data.DataView.Close("PL&Phases","Temp")
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.iPos)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.If(V.Local.sData(6).Ucase,=,"GRAND TOTAL (USD):")
+			F.Intrinsic.Control.ExitFor(V.Local.i)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Accounting Summary*'","")
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+F.Intrinsic.Control.EndIf
+
+F.Data.DataView.Close("SheetName","VSheetName")
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+F.Intrinsic.Control.For(V.Local.i,12,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+	F.Intrinsic.Control.If(V.Local.sData(0).Ucase,=,"TRUE","OR",V.Local.sData(0).Ucase,=,"FALSE")
+		F.Intrinsic.Control.If(V.Local.sData(2).IsNumeric)
+			F.Intrinsic.Control.For(V.Local.iPos,0,V.DataTable.PL&Phases.RowCount--,1)
+				V.Local.sString1.Set(V.DataTable.PL&Phases(V.Local.iPos).Line_Item!FieldValTrim)
+				V.Local.sString2.Set(V.Local.sData(3).Trim)
+				F.Intrinsic.String.IsInString(V.Local.sString2.UCase,V.Local.sString1.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.If(V.Local.bRet,=,False)
+					F.Intrinsic.String.IsInString(V.Local.sString1.UCase,V.Local.sString2.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.If(V.Local.bRet)
+					'RLK Not adding in ASIA 7/26/2021
+					'outside = (us + asia)travel  + (us + asia)sub-contract
+					'travel indexs (8 and 17)
+					'sub-contract indexs (9 and 18)
+					F.Intrinsic.Math.Add(V.Local.sData(8).Float,V.Local.sData(9).Float,V.Local.fValue)
+
+					F.Intrinsic.Math.Add(V.Local.fValue,V.DataTable.PL&Phases(V.Local.iPos).Outside!FieldValFloat,V.Local.fValue)
+					F.Data.DataTable.SetValue("PL&Phases",V.Local.iPos,"Outside",V.Local.fValue)
+					'RLK Not adding in ASIA 7/26/2021
+					'Labor = (us + asia)Labor + (us + asia)Fuel + (us + asia)Overhead
+					F.Intrinsic.Math.Add(V.Local.sData(4).Float,V.Local.sData(6).Float,V.Local.fValue)
+					F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(10).Float,V.Local.fValue)
+
+					F.Intrinsic.Math.Add(V.Local.fValue,V.DataTable.PL&Phases(V.Local.iPos).Labor!FieldValFloat,V.Local.fValue)
+					F.Data.DataTable.SetValue("PL&Phases",V.Local.iPos,"Labor",V.Local.fValue)
+					'RLK Not adding in ASIA 7/26/2021
+					'Materials indexs (5 and 14)
+					V.Local.fValue.Set(V.Local.sData(5).Float)
+					F.Intrinsic.Math.Add(V.Local.fValue,V.DataTable.PL&Phases(V.Local.iPos).Material!FieldValFloat,V.Local.fValue)
+					F.Data.DataTable.SetValue("PL&Phases",V.Local.iPos,"Material",V.Local.fValue)
+					
+					F.Intrinsic.Control.ExitFor(V.Local.iPos)
+					
+				F.Intrinsic.Control.Else		
+					F.Intrinsic.Control.If(V.Local.iPos,=,V.DataTable.PL&Phases.RowCount--)
+						F.Data.DataView.Create("PL&Phases","Temp",22,"Phase = 'INS'","")
+						'RLK Not adding in ASIA 7/26/2021
+						'outside = (us + asia)travel  + (us + asia)sub-contract
+						'travel indexs (8 and 17)
+						'sub-contract indexs (9 and 18)
+						F.Intrinsic.Math.Add(V.Local.sData(8).Float,V.Local.sData(9).Float,V.Local.fValue)
+
+						F.Intrinsic.Math.Add(V.Local.fValue,V.DataView.PL&Phases!temp(V.DataView.PL&Phases!temp.RowCount--).Outside!FieldValFloat,V.Local.fValue)
+						F.Data.DataView.SetValue("PL&Phases","Temp",V.DataView.PL&Phases!temp.RowCount--,"Outside",V.Local.fValue)
+						'RLK Not adding in ASIA 7/26/2021
+						'Labor = (us + asia)Labor + (us + asia)Fuel + (us + asia)Overhead
+						F.Intrinsic.Math.Add(V.Local.sData(4).Float,V.Local.sData(6).Float,V.Local.fValue)
+						F.Intrinsic.Math.Add(v.Local.fValue,V.Local.sData(10).Float,V.Local.fValue)
+
+						F.Intrinsic.Math.Add(V.Local.fValue,V.DataView.PL&Phases!temp(V.DataView.PL&Phases!temp.RowCount--).Labor!FieldValFloat,V.Local.fValue)
+						F.Data.DataView.SetValue("PL&Phases","Temp",V.DataView.PL&Phases!temp.RowCount--,"Labor",V.Local.fValue)
+						'RLK Not adding in ASIA 7/26/2021
+						'Materials indexs (5 and 14)
+						V.Local.fValue.Set(V.Local.sData(5).Float)
+						F.Intrinsic.Math.Add(V.Local.fValue,V.DataView.PL&Phases!temp(V.DataView.PL&Phases!temp.RowCount--).Material!FieldValFloat,V.Local.fValue)
+						F.Data.DataView.SetValue("PL&Phases","Temp",V.DataView.PL&Phases!temp.RowCount--,"Material",V.Local.fValue)
+						
+						F.Data.DataView.Close("PL&Phases","Temp")
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.iPos)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Else
+		F.Intrinsic.Control.If(V.Local.sData(6).Ucase,=,"GRAND TOTAL (USD):")
+			F.Intrinsic.Control.ExitFor(V.Local.i)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+V.Local.sSheetInfo.Redim(0,0)
+V.Local.sData.Redim(0,0)
+
+V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+F.Intrinsic.Control.For(V.Local.i,0,V.Local.sSheetInfo.UBound,1)
+	F.Intrinsic.Control.If(V.Local.sSheetInfo.Left22,=,"*!**!*Install Service:")
+		V.Local.iSheetIndex.Set(V.Local.i)
+		F.Intrinsic.Control.ExitFor(V.Local.i)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+F.Intrinsic.Control.For(V.Local.i,V.Local.iSheetIndex,V.Local.sSheetInfo.UBound,1)
+	V.Local.sData.Redim(0,0)
+	F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+	F.Intrinsic.Control.If(V.Local.sData(2).Trim,<>,"")
+		F.Intrinsic.Control.If(V.Local.sData(5).IsNumeric)
+			F.Intrinsic.Control.For(V.Local.iPos,0,V.DataTable.PL&Phases.RowCount--,1)
+				V.Local.sString1.Set(V.DataTable.PL&Phases(V.Local.iPos).Line_Item!FieldValTrim)
+				V.Local.sString2.Set(V.Local.sData(2).Trim)
+				F.Intrinsic.String.IsInString(V.Local.sString2.UCase,V.Local.sString1.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.If(V.Local.bRet,=,False)
+					F.Intrinsic.String.IsInString(V.Local.sString1.UCase,V.Local.sString2.UCase,False,V.Local.bRet)
+				F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.If(V.Local.bRet)
+					F.Data.DataTable.SetValue("PL&Phases",V.Local.iPos,"LH",V.Local.sData(13).Long)
+					F.Intrinsic.Control.ExitFor(V.Local.iPos)
+				F.Intrinsic.Control.Else
+					F.Intrinsic.Control.If(V.Local.iPos,=,V.DataTable.PL&Phases.RowCount--)
+						F.Data.DataView.Create("PL&Phases","Temp",22,"Phase = 'INS'","")
+						F.Intrinsic.Math.Add(V.Local.sData(13).Long,V.DataView.PL&Phases!temp(V.DataView.PL&Phases!temp.RowCount--).LH!FieldValLong,V.Local.fValue)
+						F.Data.DataView.SetValue("PL&Phases","Temp",V.DataView.PL&Phases!temp.RowCount--,"LH",V.Local.fValue.Long)
+						F.Data.DataView.Close("PL&Phases","Temp")
+					F.Intrinsic.Control.EndIf
+				F.Intrinsic.Control.EndIf
+			F.Intrinsic.Control.Next(V.Local.iPos)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Next(V.Local.i)
+
+f.Intrinsic.String.Format(V.Ambient.Date,"YYYYMMDD",v.Local.sStartDt)
+f.Intrinsic.String.Format(V.Ambient.Now,"HnMmSs",v.Local.sTime)
+F.Intrinsic.String.RPad(V.Local.sTime,"0",8,V.Local.sTime)
+
+F.ODBC.Connection!Con.OpenCompanyConnection
+
+F.Data.DataTable.CreateFromSQL("Phase","con","Select rtrim(Phase) as Phase, Descr From V_Project_Phase_D",True)
+
+V.Local.iPos.Set(0)
+
+F.Intrinsic.Control.For(V.Local.i,0,V.DataTable.Phase.RowCount--,1)
+	F.Intrinsic.String.Build("Phase = '{0}'",V.DataTable.Phase(V.Local.i).Phase!FieldValTrim,V.Local.sFilter)
+	F.Data.DataView.Create("PL&Phases","temp",22,V.Local.sFilter,"")
+	
+	F.Data.DataView.ToDataTable("PL&Phases","temp","PhaseTemp",True)
+	F.Intrinsic.Control.If(V.DataTable.PhaseTemp.RowCount--,<>,-1)
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumLH",Float,"Sum([LH])")
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumLabor",Float,"Sum([Labor])")
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumMaterial",Float,"Sum([Material])")
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumOutside",Float,"Sum([Outside])")
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumSales",Float,"Sum([Sales])")
+		F.Data.DataTable.AddExpressionColumn("PhaseTemp","SumAll",Float,"[SumLabor]+[SumMaterial]+[SumOutside]+[SumSales]")
+		F.Intrinsic.Control.If(V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumAll!FieldValFloat,>,0)
+			F.Intrinsic.Math.Add(V.Local.iPos,1,V.Local.iPos)
+			V.Local.sPhase.Set(V.DataTable.Phase(V.Local.i).Phase!FieldValTrim)
+			V.Local.sDesc.Set(V.DataTable.Phase(V.Local.i).Descr!FieldValTrim)
+			'Check if it exists in projects
+			F.Intrinsic.String.Build("SELECT * FROM PROJECT_PHASE WHERE PROJECT='{0}' AND PHASE='{1}'",V.Global.sProject,v.Local.sPhase,v.Local.sSql)
+			F.ODBC.Connection!con.ExecuteAndReturn(v.Local.sSQL,v.Local.sRet)
+
+			F.Intrinsic.Control.If(v.Local.sRet.Trim,=,"")
+				'Add project phase combo
+				F.Intrinsic.String.Build("INSERT INTO PROJECT_PHASE VALUES ('{0}','{1}',{2},'{3}',{4},{5},{6},{7},{8},'00000000','00000000',0,'','','','','','{9}','{10}','{11}','00000000','00000000','','00000000','00000000','','','')",V.Global.sProject,V.Local.sPhase,v.Local.iPos,V.Local.sDesc,V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumSales!FieldValLong,V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumMaterial!FieldValLong,V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumOutside!FieldValLong,V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumLabor!FieldValLong,V.DataTable.PhaseTemp(V.DataTable.PhaseTemp.RowCount--).SumLH!FieldValLong,v.Local.sStartDt,v.Local.sTime,V.Caller.User,V.Local.sSQL)
+				F.ODBC.Connection!con.Execute(V.Local.sSQL)
+			F.Intrinsic.Control.EndIf
+			
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.EndIf
+	F.Data.DataTable.Close("PhaseTemp")
+	F.Data.DataView.Close("PL&Phases","temp")
+F.Intrinsic.Control.Next(V.Local.i)
+
+'removing removing sales tax from sales and Labor on project header since it's not in any of the phases.
+'V.Passed.000014
+F.Data.DataView.Create("PL&Phases","temp",22,"Line_Item = 'Sales Tax'","")
+
+F.Intrinsic.Math.Sub(V.Passed.000014,V.DataView.PL&Phases!Temp(V.DataView.PL&Phases!temp.RowCount--).Sales!FieldValFloat,V.Passed.000014)
+F.Intrinsic.Math.Sub(V.Passed.000005,V.DataView.PL&Phases!Temp(V.DataView.PL&Phases!temp.RowCount--).Sales!FieldValFloat,V.Passed.000005)
+
+F.Data.DataView.Close("PL&Phases","temp")
+
+F.ODBC.Connection!Con.Close
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Project_Phase_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Project_Phase.End
+
+Program.Sub.Get_Price.Start
+F.Intrinsic.Control.SetErrorHandler("Get_Price_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String,"")
+V.Local.iSheetIndex.Declare(Long,0)
+V.Local.sData.Declare(String,"")
+V.Local.i.Declare(Long,0)
+V.Local.sSheetInfo.Declare(String,"")
+V.Local.fPrice.Declare(Float,0)
+
+F.Data.DataView.Create("SheetName","VSheetName",22,"SheetName Like 'Panel Review*'","")
+
+F.Intrinsic.Control.If(V.DataView.SheetName!VSheetName.RowCount--,<>,-1)
+	V.Local.iSheetIndex.Set(V.DataView.SheetName!VSheetName(V.DataView.SheetName!VSheetName.RowCount--).DataTableIndex)
+	V.Local.sSheetInfo.Set(V.Global.sSheets(V.Local.iSheetIndex))
+
+	F.Intrinsic.String.Split(V.Local.sSheetInfo,"$!$",V.Local.sSheetInfo)
+	
+	F.Intrinsic.Control.For(V.Local.i,12,V.Local.sSheetInfo.UBound,1)
+		F.Intrinsic.String.Split(V.Local.sSheetInfo(V.Local.i),"*!*",V.Local.sData)
+		F.Intrinsic.Control.If(V.Local.sData(3).uCase,=,V.Args.Part.UCase)
+			V.Local.fPrice.Set(V.Local.sData(23).Float)
+			F.Intrinsic.Control.ExitFor(V.Local.i)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i)	
+F.Intrinsic.Control.EndIf
+F.Data.DataView.Close("SheetName","VSheetName")
+
+F.Intrinsic.Variable.AddRV(Price,V.Local.fPrice)
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Get_Price_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	F.Intrinsic.String.Build("Project: GCG_6391_Project_Order.g2u {0}{0}Subroutine: {1}{0}Error Occurred {2} with description {3}",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.CallSub(Exit)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Get_Price.End
